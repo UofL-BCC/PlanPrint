@@ -52,7 +52,7 @@ namespace ConsoleApp1 {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/PlanPrint.4.7.esapi;component/usercontrol1.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/PlanPrint.8.2.esapi;component/usercontrol1.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\UserControl1.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);
