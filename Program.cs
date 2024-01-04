@@ -30,8 +30,9 @@ namespace VMS.TPS
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Execute(ScriptContext context, System.Windows.Window window) //ScriptEnvironment environment)
         {
+            //UserControl1 userControl = new UserControl1(context);
             UserControl1 userControl = new UserControl1(context, window);
-            window.Hide();
+            //window.Hide();
             //window.Height = 450;
             //window.Width = 500;
             //window.Content = userControl;

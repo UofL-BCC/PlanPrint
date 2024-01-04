@@ -1,36 +1,31 @@
-﻿//using iText.IO.Image;
-//using iTextSharp.text;
-//using iTextSharp.text.pdf;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
 using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-//using System.Windows.Shapes;
 using VMS.TPS.Common.Model.API;
 using VMS.TPS.Common.Model.Types;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
-using System.Drawing.Printing;
-using System.Diagnostics;
 using OxyPlot.Wpf;
 using OxyPlot.Series;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Legends;
+using PdfSharpCore.Pdf;
+using MigraDocCore.DocumentObjectModel;
+using MigraDocCore;
+using MigraDoc.DocumentObjectModel;
+using Section = MigraDoc.DocumentObjectModel.Section;
+using Colors = MigraDoc.DocumentObjectModel.Colors;
+using MigraDoc.DocumentObjectModel.Tables;
+using Paragraph = MigraDoc.DocumentObjectModel.Paragraph;
+using Table = MigraDoc.DocumentObjectModel.Tables.Table;
+using MigraDoc.Rendering;
 
 namespace ConsoleApp1
 {
@@ -102,7 +97,7 @@ namespace ConsoleApp1
 
 
             //now use Oxyplot to build a plot
-            window.Title = "DVH";
+            //window.Title = "DVH";
             //define the plotView
             PlotView plotView = new PlotView();
             //define the plotModel
@@ -120,25 +115,308 @@ namespace ConsoleApp1
             //assign the model to the view
             plotView.Model = plotModel;
 
-            //show the window, allow user to modify DVH structures they want to show
+            //show the window, allow user to modify DVH structures they want to show?
             window.Content = plotView;
-            window.Show();
 
 
 
             //when the DVH window is closed, get a screenshot of the plan in view
             window.Closed += Window_Closed;
 
+            //for now, close the script loading window by making a messagebox show, then run the screenshot thread
+            MessageBox.Show("begin");
+
+
+            //ScreenshotThreeView();
+            //Thread.Sleep(5000);
+
 
 
 
             string assemblyLoc = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
 
-            // eclipse template2.xml
-            TMLReader.ConvertTMLtoPDF(Path.Combine(assemblyLoc, "eclipse template2.xml"), plan);
 
 
 
+            var saveLocation = Path.Combine(assemblyLoc, "report.pdf");
+            ExportToPDF(saveLocation, context);
+
+
+        }
+
+        public void ScreenshotThreeView()
+        {
+
+            //need to run this on a seperate thread so it can wait while the loading bar closes
+            try
+            {
+                Thread trd = new Thread(new ThreadStart(this.ThreadTask));
+                trd.IsBackground = true;
+                trd.Start();
+            }
+            catch (Exception d)
+            {
+
+                MessageBox.Show(d.Message);
+            }
+
+        }
+
+        public void ExportToPDF(string pdfFile, ScriptContext context)
+        {
+            var PatientId = context.Patient.Id;
+            var PatientName = context.Patient.Name;
+            var DOB = context.Patient.DateOfBirth.ToString();
+            var PlanId = context.PlanSetup.Id;
+            var CourseId = context.Course.Id;
+            var Approval = context.PlanSetup.ApprovalStatus.ToString();
+            var Modification = context.PlanSetup.HistoryUserName.ToString();
+            var Date = context.PlanSetup.HistoryDateTime.ToString();
+            var plan = context.PlanSetup;
+
+            string assemblyLoc = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            string threeViewImageLoc = Path.Combine(assemblyLoc, "output.png");
+
+
+
+
+            Document migraDoc = new Document();
+            Section section = migraDoc.AddSection();
+            MigraDoc.DocumentObjectModel.Shapes.Image threeViewImage = section.AddImage(threeViewImageLoc);
+            threeViewImage.Width = Unit.FromCentimeter(10);
+            threeViewImage.Height = Unit.FromCentimeter(10);
+            section.PageSetup.Orientation = MigraDoc.DocumentObjectModel.Orientation.Landscape;
+            //Paragraph paragraph = section.AddParagraph();
+            MigraDoc.DocumentObjectModel.Tables.Table table = new MigraDoc.DocumentObjectModel.Tables.Table();
+            table.Borders.Width = 1;
+            table.Borders.Color = Colors.White;
+            table.AddColumn(Unit.FromCentimeter(6));
+            table.AddColumn(Unit.FromCentimeter(6));
+            Row row = table.AddRow();
+            Cell cell = row.Cells[0];
+            cell.AddParagraph("Patient ID:");
+            cell = row.Cells[1];
+            Paragraph paragraph = cell.AddParagraph();
+            paragraph.AddFormattedText(PatientId, TextFormat.Bold);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Patient Name:");
+            cell = row.Cells[1];
+            paragraph = cell.AddParagraph();
+            paragraph.AddFormattedText(PatientName, TextFormat.Bold);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Date of Birth:");
+            cell = row.Cells[1];
+            if (!string.IsNullOrEmpty(DOB))
+            {
+                cell.AddParagraph(DOB);
+            }
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Course ID:");
+            cell = row.Cells[1];
+            cell.AddParagraph(CourseId);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Plan ID:");
+            cell = row.Cells[1];
+            cell.AddParagraph(PlanId);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Approval Status:");
+            cell = row.Cells[1];
+            cell.AddParagraph(Approval);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Modification by:");
+            cell = row.Cells[1];
+            cell.AddParagraph(Modification);
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph("Modification Date/Time:");
+            cell = row.Cells[1];
+            cell.AddParagraph(Date);
+
+            section.Add(table);
+
+            Paragraph paragraph2 = section.AddParagraph("\n\n");
+            paragraph2.AddFormattedText("Plan Summary", TextFormat.Bold);
+
+            table = new Table();
+            table.Borders.Width = 1;
+            table.Borders.Color = Colors.Olive;
+            for (int c = 0; c < 10; c++)
+            {
+                table.AddColumn(Unit.FromCentimeter(2.6));
+            }
+            row = table.AddRow();
+            row.Shading.Color = Colors.PaleGoldenrod;
+            cell = row.Cells[0];
+            cell.AddParagraph("Course ID");
+            cell = row.Cells[1];
+            cell.AddParagraph("Plan ID");
+            cell = row.Cells[2];
+            cell.AddParagraph("Plan Type");
+            cell = row.Cells[3];
+            cell.AddParagraph("Target Volume ID");
+            cell = row.Cells[4];
+            cell.AddParagraph("Target a/b");
+            cell = row.Cells[5];
+            cell.AddParagraph("Presc. %");
+            cell = row.Cells[6];
+            cell.AddParagraph("Dose / Fraction");
+            cell = row.Cells[7];
+            cell.AddParagraph("Number of Fractions");
+            cell = row.Cells[8];
+            cell.AddParagraph("Total Dose Planned");
+            cell = row.Cells[9];
+            cell.AddParagraph("EQD2 Dose Planned");
+
+            row = table.AddRow();
+            cell = row.Cells[0];
+            cell.AddParagraph(plan.Course.Id);
+            cell = row.Cells[1];
+            cell.AddParagraph(plan.Id);
+            cell = row.Cells[2];
+            cell.AddParagraph(plan.PlanType.ToString());
+            cell = row.Cells[3];
+            cell.AddParagraph(plan.TargetVolumeID);
+            cell = row.Cells[4];
+            //cell.AddParagraph(plan.TargetAB);
+            cell = row.Cells[5];
+            cell.AddParagraph(plan.TreatmentPercentage.ToString());
+            cell = row.Cells[6];
+            cell.AddParagraph(plan.DosePerFraction.ToString());
+            cell = row.Cells[7];
+            cell.AddParagraph(plan.NumberOfFractions.ToString());
+            cell = row.Cells[8];
+            cell.AddParagraph(plan.TotalDose.ToString());
+            cell = row.Cells[9];
+
+
+            //foreach (var plan in Table)
+            //{
+            //    row = table.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph(plan.CourseID);
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.PlanID);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph(plan.PlanType);
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.TargetVolumeID);
+            //    cell = row.Cells[4];
+            //    cell.AddParagraph(plan.TargetAB);
+            //    cell = row.Cells[5];
+            //    cell.AddParagraph(plan.PrescPercentage);
+            //    cell = row.Cells[6];
+            //    cell.AddParagraph(plan.DosePerFraction);
+            //    cell = row.Cells[7];
+            //    cell.AddParagraph(plan.NumberOfFractions);
+            //    cell = row.Cells[8];
+            //    cell.AddParagraph(plan.TotalDosePlanned);
+            //    cell = row.Cells[9];
+            //    cell.AddParagraph(plan.EQD2DosePlanned);
+            //}
+            section.Add(table);
+
+            Paragraph paragraph3 = section.AddParagraph("\n");
+            //paragraph3.AddFormattedText("Total Planned EQD2 Dose: " + TotalEQD2Dose);
+
+            Paragraph paragraph4 = section.AddParagraph("\n\n");
+            paragraph4.AddFormattedText("Plan Details", TextFormat.Bold);
+
+            Table table2 = new Table();
+            table2.Borders.Width = 1;
+            table2.Borders.Color = Colors.White;
+            for (int c = 0; c < 4; c++)
+            {
+                table2.AddColumn(Unit.FromCentimeter(6));
+            }
+            //foreach (var plan in Details)
+            //{
+            //    row = table2.AddRow();
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    Paragraph p = cell.AddParagraph();
+            //    p.AddFormattedText(plan.PlanID, TextFormat.Bold);
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Course ID:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.CourseID);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Plan Type:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.PlanType);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph("Technique:");
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.Technique);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Dose / Fraction:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.DosePerFraction);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph("Prescribed Percentage:");
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.PrescPercentage);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Number of Fractions:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.NumberOfFractions);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Target Volume ID:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.TargetVolumeID);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph("Target Volume a/b:");
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.TargetAB);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Total Dose Planned:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.TotalDosePlanned);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph("EQD2 Dose Planned:");
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.EQD2DosePlanned);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Approval Status:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.Status);
+
+            //    row = table2.AddRow();
+            //    cell = row.Cells[0];
+            //    cell.AddParagraph("Modification by:");
+            //    cell = row.Cells[1];
+            //    cell.AddParagraph(plan.Modified);
+            //    cell = row.Cells[2];
+            //    cell.AddParagraph("Modification Date/Time:");
+            //    cell = row.Cells[3];
+            //    cell.AddParagraph(plan.Date);
+            //}
+            section.Add(table2);
+
+            
+
+            PdfDocumentRenderer pdfRenderer = new PdfDocumentRenderer(true, PdfSharp.Pdf.PdfFontEmbedding.None);
+            pdfRenderer.Document = migraDoc;
+            pdfRenderer.RenderDocument();
+            pdfRenderer.PdfDocument.Save(pdfFile);
         }
 
         public void FormatLegend(PlotModel plotModel)
@@ -328,16 +606,24 @@ namespace ConsoleApp1
             return legendLabel;
         }
 
+        public static IntPtr GetBackGroundWindow()
+        {
+            IntPtr foreground = GetForegroundWindow();
+            IntPtr background = GetWindow(foreground, GW_HWNDPREV);
+            return background;
+        }
 
         private void ThreadTask()
         {
             Rectangle rectangle = new Rectangle();
             RECT rect;
-            Thread.Sleep(1000);
+
+            Thread.Sleep(3000);
 
             IntPtr activeWindow = GetForegroundWindow();
-           
-           
+            //not working
+            //IntPtr activeWindow = GetBackGroundWindow();
+
 
             GUITHREADINFO gUITHREADINFO = new GUITHREADINFO();
             //active = gUITHREADINFO.hwndactive;
@@ -385,7 +671,7 @@ namespace ConsoleApp1
                     //                                   captImage.Width * zoom,
                     //                                   captImage.Height * zoom);
 
-                    Font font = new Font("Arial Unicode MS", 10.5f);
+                    System.Drawing.Font font = new System.Drawing.Font("Arial Unicode MS", 10.5f);
                     System.Drawing.Brush brush = new SolidBrush(System.Drawing.Color.Black);
 
                     g.DrawString(string.Format("Patient ID: {0}, Patient Name: {1}", patientId, patientName), font, brush, new PointF(10, 10));
@@ -399,6 +685,12 @@ namespace ConsoleApp1
                 string assemblyLoc = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
                 //MessageBox.Show(assemblyLoc);
                 captImage.Save(Path.Combine(assemblyLoc, "output.png"));
+
+
+
+
+
+
             }
         }
 
@@ -430,6 +722,9 @@ namespace ConsoleApp1
         [DllImport("user32.dll")]
         extern static IntPtr GetForegroundWindow();
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+        private const uint GW_HWNDPREV = 3;
 
 
         [DllImport("user32.dll")]
